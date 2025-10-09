@@ -1,14 +1,25 @@
 const CUSTOMER_SITES = {
-
-
-    wjzy: { api: 'https://api.wujinapi.me/api.php/provide/vod', name: '🎬无尽云'},
     
-    testSource: {
+    md91zy: { api: 'https://91md.me/api.php/provide/vod', name: '🔞91麻豆',adult: true },//不知道什么原因播不了，地址是M3U8
+    bpzy: { api: 'https://www.kxgav.com/api/json.php', name: '🔞白嫖',adult: true ,detail: 'https://www.kxgav.com'},//显示找不到资源 https://www.kxgav.com/api/json.php https://www.kxgav.com/api/xml.php
+    hsckzy: { api: 'https://hsckzy.xyz/api.php/provide/vod', name: '🔞黄色仓库', adult: true},//https://hsckzy.xyz/api.php/provide/vod抓取的地址非M3U8https://hsckyun.yeffpe.com/share/a2/20250425/b5sG2Cyg
+    xbzy: { api: 'https://www.xxibaozyw.com/api.php/provide/vod', name: '🔞细胞', adult: true},//显示找不到资源
+    sngzy: { api: 'https://api.sexnguon.com/api.php/provide/vod',name: '🔞色南国', adult: true},//不知道什么原因搜不到
+    msnzy: { api: 'https://www.msnii.com/api/json.php', name: '🔞美少女', adult: true,detail: 'https://www.msnii.com'},//显示找不到资源  https://www.msnii.com/api/json.php https://www.msnii.com/api/xml.php
+    dadizy: { api: 'https://dadiapi.com/api.php/provide/vod', name: '🔞大地资源', adult: true},//detail": "https://dadizy11.com" 需要找到json地址 https://dadiapi.com/api.php/provide/vod  https://dadiapi.com/feifei2
+
+
+
+    
+    
+    //wjzy: { api: 'https://api.wujinapi.me/api.php/provide/vod', name: '🎬无尽云'},
+    
+    /*testSource: {
         api: 'https://www.example.com/api.php/provide/vod',
         name: '空内容测试源',
-        adult: true',
+        adult: true,
         detail: 'https://www.example.com', 
-    },
+    },*/
 };
 
 // 调用全局方法合并
