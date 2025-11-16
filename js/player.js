@@ -54,30 +54,35 @@ function goBack(event) {
     window.history.back();
 }
 
-// 页面加载时保存当前URL到localStorage，作为返回目标
+// 页面加载时初始化播放地址并确保调用
 window.addEventListener('load', function () {
-    // 保存前一页面URL
+    // 保存上一页地址
     if (document.referrer && document.referrer !== window.location.href) {
         localStorage.setItem('lastPageUrl', document.referrer);
     }
 
-    // 提取当前URL中的重要参数，以便在需要时能够恢复当前页面
+    // 提取视频原始地址参数（假设当前页面URL中包含原始视频地址参数为"videoUrl"）
     const urlParams = new URLSearchParams(window.location.search);
-    const videoId = urlParams.get('id');
-    const sourceCode = urlParams.get('source');
+    const originalVideoUrl = urlParams.get('videoUrl'); // 原始视频地址参数
+    
+    if (originalVideoUrl) {
+        // 生成通过jx.shake123.com调用的播放地址
+        const playerUrl = `https://jx.shake123.com/?url=${encodeURIComponent(originalVideoUrl)}`;
+        
+        // 保存到localStorage供其他地方使用
+        localStorage.setItem('currentPlayerUrl', playerUrl);
+        
+        // 自动跳转到播放地址（如果需要直接播放）
+        // 取消注释下面这行将自动打开播放页面
+        // window.location.href = playerUrl;
 
-    if (videoId && sourceCode) {
-        // 保存当前播放状态，以便其他页面可以返回
-        //localStorage.setItem('currentPlayingId', videoId);
-        //localStorage.setItem('currentPlayingSource', sourceCode);
-
-        // 保存当前播放状态，使用jx.shake123.com作为播放地址
-        const playUrl = `https://jx.shake123.com/?url=${encodeURIComponent(videoId)}`;
-        localStorage.setItem('currentPlayingUrl', playUrl);
-        localStorage.setItem('currentPlayingId', videoId);
-        localStorage.setItem('currentPlayingSource', sourceCode);
+        // 或者如果是在当前页面嵌入播放，可创建iframe
+        const playerContainer = document.getElementById('player-container');
+        if (playerContainer) {
+            playerContainer.innerHTML = `<iframe src="${playerUrl}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>`;
+        }
     }
-});
+                       );
 
 
 // =================================
