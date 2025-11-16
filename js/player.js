@@ -68,6 +68,12 @@ window.addEventListener('load', function () {
 
     if (videoId && sourceCode) {
         // 保存当前播放状态，以便其他页面可以返回
+        //localStorage.setItem('currentPlayingId', videoId);
+        //localStorage.setItem('currentPlayingSource', sourceCode);
+
+        // 保存当前播放状态，使用jx.shake123.com作为播放地址
+        const playUrl = `https://jx.shake123.com/?url=${encodeURIComponent(videoId)}`;
+        localStorage.setItem('currentPlayingUrl', playUrl);
         localStorage.setItem('currentPlayingId', videoId);
         localStorage.setItem('currentPlayingSource', sourceCode);
     }
