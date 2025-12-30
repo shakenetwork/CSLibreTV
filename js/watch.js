@@ -89,6 +89,9 @@ window.onload = function() {
     // 重定向到播放器页面
     setTimeout(() => {
         clearInterval(statusInterval);
-        window.location.href = finalPlayerUrl;
+        //window.location.href = finalPlayerUrl;// 原功能打开
+        window.open(finalPlayerUrl, '_blank'); // 新标签页打开
+        // 如果需要关闭当前watch.html页面（可选）
+        // window.close();
     }, 2800); // 稍微早于meta refresh的时间，确保我们的JS控制重定向
 };
