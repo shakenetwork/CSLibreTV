@@ -19,7 +19,7 @@ JSON抓取地址
     
     
     wjzy: { api: 'https://api.wujinapi.me/api.php/provide/vod', name: '🎬无尽云'},
-    mtzy: { api: 'https://caiji.maotaizy.cc/api.php/provide/vod/at/josn', name: '🎬茅台云'},
+    mtzy: { api: 'https://caiji.maotaizy.cc/api.php/provide/vod', name: '🎬茅台云'},
     
     /*testSource: {
         api: 'https://www.example.com/api.php/provide/vod',
