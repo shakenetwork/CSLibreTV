@@ -54,47 +54,36 @@ function goBack(event) {
     window.history.back();
 }
 
-// 页面加载时初始化播放地址并确保调用
+// 页面加载时保存当前URL到localStorage，作为返回目标
 window.addEventListener('load', function () {
-    // 保存上一页地址
+    // 保存前一页面URL
     if (document.referrer && document.referrer !== window.location.href) {
         localStorage.setItem('lastPageUrl', document.referrer);
     }
 
-    // 提取视频原始地址参数（假设当前页面URL中包含原始视频地址参数为"videoUrl"）
+    // 提取当前URL中的重要参数，以便在需要时能够恢复当前页面
     const urlParams = new URLSearchParams(window.location.search);
-    const originalVideoUrl = urlParams.get('videoUrl'); // 原始视频地址参数
-    
-    if (originalVideoUrl) {
-        // 生成通过jx.shake123.com调用的播放地址
-        const playerUrl = `https://jx.shake123.com/?url=${encodeURIComponent(originalVideoUrl)}`;
-        
-        // 保存到localStorage供其他地方使用
-        localStorage.setItem('currentPlayerUrl', playerUrl);
-        
-        // 自动跳转到播放地址（如果需要直接播放）
-        // 取消注释下面这行将自动打开播放页面
-        // window.location.href = playerUrl;
+    const videoId = urlParams.get('id');
+    const sourceCode = urlParams.get('source');
 
-        // 或者如果是在当前页面嵌入播放，可创建iframe
-        const playerContainer = document.getElementById('player-container');
-        if (playerContainer) {
-            playerContainer.innerHTML = `<iframe src="${playerUrl}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>`;
-        }
+    if (videoId && sourceCode) {
+        // 保存当前播放状态，以便其他页面可以返回
+        localStorage.setItem('currentPlayingId', videoId);
+        localStorage.setItem('currentPlayingSource', sourceCode);
     }
-                       );
+});
 
 
 // =================================
 // ============== PLAYER ==========
 // =================================
 // 全局变量
-let currentVideoTitle = '';
-let currentEpisodeIndex = 0;
-let art = null; // 用于 ArtPlayer 实例
+let currentVideoTitle = '';// 当前播放的视频标题
+let currentEpisodeIndex = 0;// 当前播放的剧集索引（从0开始计数）
+let art = null; // 用于 ArtPlayer 实例，初始化为null，将在初始化时创建
 let currentHls = null; // 跟踪当前HLS实例
-let currentEpisodes = [];
-let episodesReversed = false;
+let currentEpisodes = [];// 存储当前系列的所有剧集信息（数组）
+let episodesReversed = false;// 标识剧集列表是否被反转（用户选择倒序播放时设为true）
 let autoplayEnabled = true; // 默认开启自动连播
 let videoHasEnded = false; // 跟踪视频是否已经自然结束
 let userClickedPosition = null; // 记录用户点击的位置
@@ -102,7 +91,12 @@ let shortcutHintTimeout = null; // 用于控制快捷键提示显示时间
 let adFilteringEnabled = true; // 默认开启广告过滤
 let progressSaveInterval = null; // 定期保存进度的计时器
 let currentVideoUrl = ''; // 记录当前实际的视频URL
-const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
+const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')// 检测是否为Webkit内核浏览器（Safari或旧版Chrome）
+/**
+ * 配置ArtPlayer的网页全屏模式：
+ * 设为true时，播放器在进入网页全屏时会移动到<body>中
+ * 这可以解决某些容器内的样式问题（如transform导致的定位错误）
+ */
 Artplayer.FULLSCREEN_WEB_IN_BODY = true;
 
 // 页面加载
@@ -229,7 +223,7 @@ function initializePageContent() {
     }
 
     // 设置页面标题
-    document.title = currentVideoTitle + ' - LibreTV播放器';
+    document.title = currentVideoTitle + ' - ShakeTV播放器';
     document.getElementById('videoTitle').textContent = currentVideoTitle;
 
     // 初始化播放器
@@ -419,69 +413,307 @@ function initPlayer(videoUrl) {
         art = null;
     }
 
-    // 配置HLS.js选项
-    const hlsConfig = {
-        debug: false,
-        loader: adFilteringEnabled ? CustomHlsJsLoader : Hls.DefaultConfig.loader,
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 90,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 30 * 1000 * 1000,
-        maxBufferHole: 0.5,
-        fragLoadingMaxRetry: 6,
-        fragLoadingMaxRetryTimeout: 64000,
-        fragLoadingRetryDelay: 1000,
-        manifestLoadingMaxRetry: 3,
-        manifestLoadingRetryDelay: 1000,
-        levelLoadingMaxRetry: 4,
-        levelLoadingRetryDelay: 1000,
-        startLevel: -1,
-        abrEwmaDefaultEstimate: 500000,
-        abrBandWidthFactor: 0.95,
-        abrBandWidthUpFactor: 0.7,
-        abrMaxWithRealBitrate: true,
-        stretchShortVideoTrack: true,
-        appendErrorMaxRetry: 5,  // 增加尝试次数
-        liveSyncDurationCount: 3,
-        liveDurationInfinity: false
-    };
+const hlsConfig = {
+    debug: false,// 调试模式：关闭日志输出以减少控制台噪音
+    loader: adFilteringEnabled ? CustomHlsJsLoader : Hls.DefaultConfig.loader,// 自定义加载器：根据广告过滤开关选择使用自定义或默认加载器
+    enableWorker: true,// 启用Web Worker：使用单独线程处理HLS解析，提高性能
+    lowLatencyMode: false,// 低延迟模式：关闭（适用于普通点播，直播需开启）
+    
+    // 缓冲区配置
+    backBufferLength: 90,         // 后缓冲长度(秒)，保留的历史数据量
+    maxBufferLength: 30,          // 最大缓冲长度(秒)
+    maxMaxBufferLength: 60,       // 缓冲区的绝对最大长度(秒)
+    maxBufferSize: 30 * 1000 * 1000, // 最大缓冲区大小(字节) = 30MB
+    
+    // 网络容错配置
+    maxBufferHole: 0.5,           // 允许的最大缓冲区间隙(秒)
+    fragLoadingMaxRetry: 6,       // 分片加载最大重试次数
+    fragLoadingMaxRetryTimeout: 64000, // 分片加载超时时间(毫秒)
+    fragLoadingRetryDelay: 1000,  // 分片加载重试延迟(毫秒)
+    
+    // 清单文件加载配置
+    manifestLoadingMaxRetry: 3,   // m3u8清单文件最大重试次数
+    manifestLoadingRetryDelay: 1000, // 清单文件重试延迟(毫秒)
+    
+    // 码率层级加载配置
+    levelLoadingMaxRetry: 4,      // 码率层级加载最大重试次数
+    levelLoadingRetryDelay: 1000, // 码率层级重试延迟(毫秒)
+    
+    // 自适应码率(ABR)配置
+    startLevel: -1,               // 初始码率级别(-1=自动选择)
+    abrEwmaDefaultEstimate: 500000, // 初始带宽估算值(bps)
+    abrBandWidthFactor: 0.95,     // 带宽估算保守因子(0.95=95%的估算带宽)
+    abrBandWidthUpFactor: 0.7,    // 向上切换码率的阈值(70%的带宽裕量)
+    abrMaxWithRealBitrate: true,  // 使用实际比特率而非声明比特率
+    
+    // 视频处理配置
+    stretchShortVideoTrack: true, // 拉伸短视频轨道以匹配音频长度
+    
+    // 错误处理配置
+    appendErrorMaxRetry: 5,       // 媒体源缓冲区追加失败的最大重试次数
+    
+    // 直播流配置
+    liveSyncDurationCount: 3,     // 直播同步点保留的分片数量
+    liveDurationInfinity: false   // 不将直播流视为无限时长
+};
 
-    // Create new ArtPlayer instance
-    art = new Artplayer({
-        container: '#player',
-        url: videoUrl,
-        type: 'm3u8',
-        title: videoTitle,
-        volume: 0.8,
-        isLive: false,
-        muted: false,
-        autoplay: true,
-        pip: true,
-        autoSize: false,
-        autoMini: true,
-        screenshot: true,
-        setting: true,
-        loop: false,
-        flip: false,
-        playbackRate: true,
-        aspectRatio: false,
-        fullscreen: true,
-        fullscreenWeb: true,
-        subtitleOffset: false,
-        miniProgressBar: true,
-        mutex: true,
-        backdrop: true,
-        playsInline: true,
-        autoPlayback: false,
-        airplay: true,
-        hotkey: false,
-        theme: '#23ade5',
-        lang: navigator.language.toLowerCase(),
-        moreVideoAttr: {
-            crossOrigin: 'anonymous',
+    // Create new ArtPlayer instance    Artplayer官网 https://artplayer.org/document/#%E5%8F%A4%E8%80%81%E7%9A%84%E6%B5%8F%E8%A7%88%E5%99%A8
+art = new Artplayer({
+    container: '#player',           // 播放器挂载的DOM元素（ID选择器）挂载的DOM容器
+    url: videoUrl,                  // 视频源URL地址
+    type: 'm3u8',                   // 指定视频类型为HLS流媒体（m3u8格式）
+    title: videoTitle,              // 在播放器顶部显示的视频标题
+    //poster: '/assets/sample/poster.jpg', // 视频封面图
+    
+    // 播放行为参数
+    volume: 1,                    // 初始音量设为80%（0.0-1.0范围）
+    isLive: false,                  // 是否为直播流（点播视频）
+    muted: false,                   // 初始非静音状态
+    autoplay: true,                 // 页面加载后是否自动播放
+    loop: false,                    // 是否循环播放 false为关闭 true为开启
+    autoPlayback: true,            // 自动恢复播放进度
+
+    
+    // 功能开关
+    pip: true,                      // 启用画中画模式
+    autoSize: false,                // 不自动调整播放器尺寸
+    autoMini: true,                 // 启用窗口缩小自动进入迷你模式
+    screenshot: true,               // 启用截图功能
+    setting: true,                  // 显示设置按钮
+    flip: true,                    // 画面翻转功能
+    playbackRate: true,             // 播放速度控制
+    aspectRatio: true,             // 画面比例调整
+    fullscreen: true,               // 启用全屏功能
+    fullscreenWeb: true,            // 启用网页全屏模式
+    subtitleOffset: false,          // 字幕时间偏移调整
+    miniProgressBar: true,          // 启用迷你模式下的迷你进度条
+    mutex: true,                    // 启用互斥模式（单实例播放）只允许一个播放器播放
+    backdrop: true,                 // 显示视频背景层
+    playsInline: true,              // 移动端启用内联播放（避免全屏）
+    airplay: true,                  // 启用AirPlay投屏功能
+    hotkey: false,                  // 禁用全局快捷键控制
+
+
+    
+    // 外观与本地化
+    theme: '#23ade5',               // 播放器主题色（蓝色）
+    lang: navigator.language.toLowerCase(), // 使用浏览器语言设置
+    
+    // 视频属性扩展
+    moreVideoAttr: {
+        crossOrigin: 'anonymous',   // 设置跨域属性（用于截图等需要跨域的操作）
+    },
+
+     // 设置面板配置  从设置菜单里面的Subtitle开始到Button的内容设置
+    /*settings: [
+        {
+            width: 200,  // 设置面板宽度
+            html: 'Subtitle', // 设置项标题
+            tooltip: 'Bilingual', // 鼠标悬停提示
+            icon: '<img width="22" height="22" src="/image/subtitle.svg">', // 设置项字幕图标
+            selector: [  // 下拉选择器配置
+                {
+                    html: 'Display', // 选项文本
+                    tooltip: 'Show', // 选项提示
+                    switch: true,    // 开关类型选项
+                    onSwitch: function (item) { // 开关切换回调
+                        item.tooltip = item.switch ? 'Hide' : 'Show'; // 更新提示文本
+                        art.subtitle.show = !item.switch; // 控制字幕显示
+                        return !item.switch; // 返回新状态
+                    },
+                },
+                {  // 字幕选项
+                    default: true,   // 默认选中
+                    html: 'Bilingual', // 选项文本
+                    url: '/assets/sample/subtitle.srt', // 字幕文件地址
+                },
+                // 其他字幕选项...
+            ],
+            onSelect: function (item) { // 选项选择回调
+                art.subtitle.switch(item.url, { // 切换字幕
+                    name: item.html, // 字幕名称
+                });
+                return item.html; // 更新显示文本
+            },
         },
+        {
+                        html: '画面比例',
+                        icon: '<svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 12H9v2h2v2h2v-2h2v-2h-2v-2h-2v2zm0-6h2v2h-2V9zm6 6h2v-2h-2v2zm0-4h2v-2h-2v2z"/></svg>',
+                        selector: [
+                            { default: true, html: '默认', value: 'default' },
+                            { html: '16:9', value: 16/9 },
+                            { html: '4:3', value: 4/3 },
+                            { html: '填充', value: 'fill' },
+                        ],
+                        onSelect: function (item) {
+                            setAspectRatio(item.value);
+                            updateAspectButtons(item.value);
+                            return item.html;
+                        },
+                    },
+                    {
+                        html: '画面翻转',
+                        icon: '<svg viewBox="0 0 24 24"><path d="M15 21h2v-2h-2v2zm4-12h2V7h-2v2zM3 5v14c0 1.1.9 2 2 2h4v-2H5V5h4V3H5c-1.1 0-2 .9-2 2zm16-2v2h2c0-1.1-.9-2-2-2zm-8 20h2V1h-2v22zm8-6h2v-2h-2v2zM15 5h2V3h-2v2zm4 8h2v-2h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2z"/></svg>',
+                        selector: [
+                            { default: true, html: '正常', value: 'normal' },
+                            { html: '水平翻转', value: 'horizontal' },
+                            { html: '垂直翻转', value: 'vertical' },
+                            { html: '双向翻转', value: 'both' },
+                        ],
+                        onSelect: function (item) {
+                            art.flip = item.value;
+                            updateFlipButtons(item.value);
+                            return item.html;
+                        },
+                    },
+        { // 开关类型设置项
+            html: 'Switcher',
+            icon: '<img width="22" height="22" src="/image/statelogo.svg">',
+            tooltip: 'OFF',
+            switch: false, // 初始状态
+            onSwitch: function (item) { // 开关切换回调
+                item.tooltip = item.switch ? 'OFF' : 'ON';
+                console.info('You clicked on the custom switch', item.switch);
+                return !item.switch; // 返回新状态
+            },
+        },
+        { // 滑块类型设置项
+            html: 'Slider',
+            icon: '<img width="22" height="22" src="/image/statelogo.svg">',
+            tooltip: '5x',
+            range: [5, 1, 10, 0.1], // [初始值, 最小值, 最大值, 步长]
+            onRange: function (item) { // 滑块变化回调
+                return item.range[0] + 'x'; // 更新提示文本
+            },
+        },
+        { // 按钮类型设置项
+            html: 'Button',
+            icon: '<img width="22" height="22" src="/image/statelogo.svg">',
+            tooltip: 'tooltip',
+            onClick() { // 点击回调
+                return 'Button clicked'; // 返回提示文本
+            }
+        },
+    ],
+    // 右键菜单配置
+    contextmenu: [
+        {
+            html: 'Custom menu', // 菜单项文本
+            click: function (contextmenu) { // 点击回调
+                console.info('You clicked on the custom menu');
+                contextmenu.show = false; // 关闭菜单
+            },
+        },
+          {
+                        html: '画面比例',
+                        selector: [
+                            { html: '默认', value: 'default' },
+                            { html: '16:9', value: 16/9 },
+                            { html: '4:3', value: 4/3 },
+                            { html: '填充', value: 'fill' },
+                        ],
+                        onSelect: function (item) {
+                            setAspectRatio(item.value);
+                            updateAspectButtons(item.value);
+                        },
+                    },
+                    {
+                        html: '画面翻转',
+                        selector: [
+                            { html: '水平翻转', value: 'horizontal' },
+                            { html: '垂直翻转', value: 'vertical' },
+                            { html: '双向翻转', value: 'both' },
+                            { html: '恢复正常', value: 'normal' },
+                        ],
+                        onSelect: function (item) {
+                            art.flip = item.value;
+                            updateFlipButtons(item.value);
+                        },
+                    },
+    ],
+
+                  
+    // 自定义图层
+    layers: [
+        {
+            html: '<img width="100" src="/assets/sample/layer.png">', // 图层HTML内容
+            click: function () { // 点击事件
+                window.open('https://aimu.app'); // 打开链接
+                console.info('You clicked on the custom layer');
+            },
+            style: { // 图层样式
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                opacity: '.9',
+            },
+        },
+    ],
+    
+    // 清晰度切换
+    quality: [
+        {
+            default: true, // 默认清晰度
+            html: 'SD 480P', // 清晰度名称
+            url: '/assets/sample/video.mp4?q=480', // 对应视频源
+        },
+        {
+            html: 'HD 720P',
+            url: '/assets/sample/video.mp4?q=720',
+        },
+    ],
+    
+    // 缩略图配置
+    thumbnails: {
+        url: '/assets/sample/thumbnails.png', // 缩略图雪碧图
+        number: 60,       // 缩略图总数
+        column: 10,      // 雪碧图列数
+        scale: 0.85,     // 缩放比例
+    },
+    
+    // 字幕配置
+    subtitle: {
+        url: '/assets/sample/subtitle.srt', // 字幕文件地址
+        type: 'srt',     // 字幕格式
+        style: {         // 字幕样式
+            color: '#fe9200',
+            fontSize: '20px',
+        },
+        encoding: 'utf-8', // 文件编码
+    },
+    
+    // 视频高亮点标记
+    highlight: [
+        {
+            time: 15,    // 标记时间点（秒）
+            text: 'One more chance', // 标记文本
+        },
+        // 其他标记点...
+    ],
+    
+    // 自定义控制栏组件
+    controls: [
+        {
+            position: 'right', // 位置（右侧）
+            html: 'Control',   // 显示文本
+            index: 1,          // 显示顺序
+            tooltip: 'Control Tooltip', // 悬停提示
+            style: {           // 自定义样式
+                marginRight: '20px',
+            },
+            click: function () { // 点击事件
+                console.info('You clicked on the custom control');
+            },
+        },
+    ],
+    
+    // 自定义图标
+    icons: {
+        loading: '<img src="/assets/img/ploading.gif">',     // 加载动画
+        state: '<img width="150" height="150" src="/assets/img/state.svg">', // 播放状态图标
+        indicator: '<img width="16" height="16" src="/assets/img/indicator.svg">', // 进度指示器
+    },
+    */
         customType: {
             m3u8: function (video, url) {
                 // 清理之前的HLS实例
@@ -593,7 +825,16 @@ function initPlayer(videoUrl) {
             }
         }
     });
+    //视频画面翻转
+    /*art.on('flip', (flip) => {
+    console.info('flip', flip);
+    });
+    //视频画面比例
+    art.on('aspectRatio', (aspectRatio) => {
+    console.info('aspectRatio', aspectRatio);
+    });*/
 
+    
     // artplayer 没有 'fullscreenWeb:enter', 'fullscreenWeb:exit' 等事件
     // 所以原控制栏隐藏代码并没有起作用
     // 实际起作用的是 artplayer 默认行为，它支持自动隐藏工具栏
@@ -1207,10 +1448,10 @@ function showPositionRestoreHint(position) {
     setTimeout(() => {
         hint.classList.add('show');
 
-        // 3秒后隐藏
+        // 1秒后隐藏 默认3秒
         setTimeout(() => {
             hint.classList.remove('show');
-            setTimeout(() => hint.remove(), 300);
+            setTimeout(() => hint.remove(), 100);//默认300
         }, 3000);
     }, 100);
 }
