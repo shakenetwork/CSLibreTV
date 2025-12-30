@@ -1,31 +1,6 @@
 // 页面加载后显示弹窗脚本
 document.addEventListener('DOMContentLoaded', function() {
 
-    // 新增：全局监听集数链接点击，强制新标签页打开
-    // 这里的选择器要根据你实际的集数链接特征修改！
-    // 方式1：通过模态框容器+链接标签匹配（推荐）
-    const modalContent = document.getElementById('modalContent');
-    if (modalContent) {
-        // 事件委托：监听模态框内所有a标签的点击
-        modalContent.addEventListener('click', function(e) {
-            const targetLink = e.target.closest('a'); // 找到被点击的a标签
-            // 过滤：只处理集数链接（根据href特征判断，比如包含ep=或/watch）
-            if (targetLink && targetLink.href.includes('ep=') || targetLink.href.includes('/watch')) {
-                e.preventDefault(); // 阻止原页面跳转
-                window.open(targetLink.href, '_blank'); // 新标签页打开
-            }
-        });
-    }
-
-    // 方式2：如果知道集数链接的class，直接匹配（更精准）
-    // document.addEventListener('click', function(e) {
-    //     if (e.target.classList.contains('episode-link')) {
-    //         e.preventDefault();
-    //         window.open(e.target.href, '_blank');
-    //     }
-    // });
-
-    
     // 弹窗显示脚本
     // 检查用户是否已经看过声明
     const hasSeenDisclaimer = localStorage.getItem('hasSeenDisclaimer');
